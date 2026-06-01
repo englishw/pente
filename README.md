@@ -1,73 +1,97 @@
-# React + TypeScript + Vite
+# Pente
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A polished, fully playable browser-based version of the classic board game Pente. Supports 2-4 players competing individually.
 
-Currently, two official plugins are available:
+## Features
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- **2-4 player support** — all players compete individually, no teams
+- **Complete rule implementation** — five-in-a-row, captures, mixed captures, center opening
+- **Responsive design** — works on desktop, tablet, and mobile
+- **SVG board** — scales perfectly at any resolution
+- **Animations** — stone placement, capture removal, win highlighting
+- **Sound effects** — procedurally generated via Web Audio API
+- **Save/Resume** — game state persists in LocalStorage
+- **Undo** — full move history with unlimited undo
+- **Accessibility** — keyboard navigation, screen reader support, color-blind mode
+- **Settings** — coordinates toggle, sound, animation speed, high contrast, color-blind mode
+- **Customizable** — player names and colors
 
-## React Compiler
+## Tech Stack
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+- React 19 + TypeScript
+- Vite 8
+- Tailwind CSS v4
+- Vitest
 
-## Expanding the ESLint configuration
+Entirely client-side — no backend, no database, no authentication.
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+## Getting Started
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+### Prerequisites
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+- Node.js 18+ (LTS recommended)
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+### Install & Run
+
+```bash
+git clone https://github.com/englishw/pente.git
+cd pente
+npm install
+npm run dev
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+Open http://localhost:5173/pente/ in your browser.
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+### Run Tests
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+npm test
 ```
+
+### Production Build
+
+```bash
+npm run build
+npm run preview
+```
+
+## Deployment to GitHub Pages
+
+This project deploys automatically via GitHub Actions on every push to `main`.
+
+### Setup
+
+1. Push code to GitHub
+2. Go to **Settings → Pages**
+3. Set **Source** to **GitHub Actions**
+4. The workflow at `.github/workflows/deploy.yml` handles the rest
+
+The site will be available at `https://<username>.github.io/pente/`.
+
+## Architecture
+
+All game logic lives in `src/engine/` as pure TypeScript functions with no React dependencies. The engine is independently testable.
+
+```
+src/
+├── engine/          # Pure game logic (types, board, validation, captures, victory, engine)
+│   └── __tests__/   # 45 unit tests
+├── components/      # React UI components
+├── context/         # React Context providers (game state, settings)
+├── hooks/           # Custom hooks
+└── utils/           # Storage, sound, color utilities
+```
+
+## Game Rules
+
+- **Board**: 19×19, play on intersections
+- **First move**: Must be placed on the center intersection
+- **Captures**: Bracket two opponent stones to remove them (P-O-O-P pattern)
+- **Mixed captures**: In 3-4 player games, captured stones can belong to different opponents
+- **Win by five-in-a-row**: Five or more consecutive stones in any direction
+- **Win by captures**: Accumulate five captured pairs
+- **Victory order**: Captures processed first, then both win conditions checked
+
+## License
+
+MIT

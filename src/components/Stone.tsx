@@ -1,0 +1,75 @@
+import { useSettings } from '../context/SettingsContext';
+import { CB_SHAPES } from '../utils/colors';
+
+interface StoneProps {
+  cx: number;
+  cy: number;
+  color: string;
+  playerIndex: number;
+  isWinning?: boolean;
+  isNew?: boolean;
+  radius?: number;
+}
+
+export default function Stone({ cx, cy, color, playerIndex, isWinning, isNew, radius = 8.5 }: StoneProps) {
+  const { settings } = useSettings();
+  const gradId = `stone-grad-${cx}-${cy}`;
+  const isLight = color === '#f5f5f5' || color === '#ffffff' || color === '#E69F00';
+
+  return (
+    <g className={`${isNew ? 'stone-enter' : ''} ${isWinning ? 'stone-winning' : ''}`}
+       style={{ transformOrigin: `${cx}px ${cy}px` }}>
+      <defs>
+        <radialGradient id={gradId} cx="35%" cy="35%">
+          <stop offset="0%" stopColor={isLight ? '#ffffff' : '#666666'} stopOpacity="0.8" />
+          <stop offset="100%" stopColor={color} />
+        </radialGradient>
+      </defs>
+      <circle
+        cx={cx}
+        cy={cy}
+        r={radius}
+        fill={`url(#${gradId})`}
+        stroke={isLight ? '#999' : '#333'}
+        strokeWidth="0.5"
+      />
+      {settings.colorBlindMode && (
+        <CBMarker cx={cx} cy={cy} shape={CB_SHAPES[playerIndex % CB_SHAPES.length]} isLight={isLight} />
+      )}
+    </g>
+  );
+}
+
+function CBMarker({ cx, cy, shape, isLight }: { cx: number; cy: number; shape: string; isLight: boolean }) {
+  const color = isLight ? '#333' : '#fff';
+  const size = 3.5;
+
+  switch (shape) {
+    case 'circle':
+      return <circle cx={cx} cy={cy} r={size * 0.6} fill="none" stroke={color} strokeWidth="1.2" />;
+    case 'cross':
+      return (
+        <g stroke={color} strokeWidth="1.2" strokeLinecap="round">
+          <line x1={cx - size} y1={cy - size} x2={cx + size} y2={cy + size} />
+          <line x1={cx + size} y1={cy - size} x2={cx - size} y2={cy + size} />
+        </g>
+      );
+    case 'triangle':
+      return (
+        <polygon
+          points={`${cx},${cy - size} ${cx - size},${cy + size * 0.7} ${cx + size},${cy + size * 0.7}`}
+          fill="none" stroke={color} strokeWidth="1.2"
+        />
+      );
+    case 'square':
+      return (
+        <rect
+          x={cx - size * 0.7} y={cy - size * 0.7}
+          width={size * 1.4} height={size * 1.4}
+          fill="none" stroke={color} strokeWidth="1.2"
+        />
+      );
+    default:
+      return null;
+  }
+}

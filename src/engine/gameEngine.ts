@@ -1,5 +1,5 @@
 import type { GameState, GameConfig, Position, Move } from './types';
-import { createBoard, setStone, cloneBoard } from './board';
+import { createBoard, setStone } from './board';
 import { isValidMove } from './validation';
 import { detectCaptures, processCaptures } from './captures';
 import { checkFiveInARow, checkCaptureVictory } from './victory';
