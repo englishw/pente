@@ -16,6 +16,7 @@ export default function SharedGameSetup({ onBack }: SharedGameSetupProps) {
     roomCode,
     broker,
     players,
+    takenColors,
     createRoom,
     joinRoom,
     startSharedGame,
@@ -28,6 +29,11 @@ export default function SharedGameSetup({ onBack }: SharedGameSetupProps) {
   const [joinCode, setJoinCode] = useState('');
 
   const isBusy = phase === 'connecting';
+  const normalizedTakenColors = useMemo(
+    () => new Set(takenColors.map(c => c.trim().toLowerCase())),
+    [takenColors]
+  );
+  const selectedColorTaken = normalizedTakenColors.has(color.trim().toLowerCase());
 
   const heading = useMemo(() => {
     if (phase === 'lobby') return 'Shared Game Lobby';
@@ -97,21 +103,43 @@ export default function SharedGameSetup({ onBack }: SharedGameSetupProps) {
 
             <label className="text-sm text-slate-300">Stone Color</label>
             <div className="flex gap-2 flex-wrap">
-              {PRESET_COLORS.map(c => (
-                <button
-                  key={c}
-                  type="button"
-                  className="w-7 h-7 rounded-full border border-slate-500 hover:scale-110 transition-transform"
-                  style={{
-                    backgroundColor: c,
-                    outline: color === c ? '2px solid #f59e0b' : 'none',
-                    outlineOffset: '1px',
-                  }}
-                  onClick={() => setColor(c)}
-                  aria-label={`Select color ${c}`}
-                />
-              ))}
+              {PRESET_COLORS.map(c => {
+                const isTaken = normalizedTakenColors.has(c.trim().toLowerCase());
+                const isSelected = color === c;
+                const isBlocked = isTaken && !isSelected;
+
+                return (
+                  <button
+                    key={c}
+                    type="button"
+                    className="relative w-7 h-7 rounded-full border border-slate-500 hover:scale-110 transition-transform disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+                    style={{
+                      backgroundColor: c,
+                      outline: isSelected
+                        ? (isTaken ? '2px solid #ef4444' : '2px solid #f59e0b')
+                        : 'none',
+                      outlineOffset: '1px',
+                    }}
+                    onClick={() => setColor(c)}
+                    disabled={isBlocked}
+                    aria-label={isTaken ? `Color ${c} is taken` : `Select color ${c}`}
+                    title={isTaken ? 'Taken' : 'Available'}
+                  >
+                    {isTaken && (
+                      <span className="absolute -top-1 -right-1 text-[9px] leading-none bg-red-500 text-white rounded px-1">T</span>
+                    )}
+                  </button>
+                );
+              })}
             </div>
+            {takenColors.length > 0 && (
+              <p className="text-xs text-slate-400">
+                Colors marked with <span className="text-red-300 font-semibold">T</span> are already taken.
+              </p>
+            )}
+            {selectedColorTaken && (
+              <p className="text-xs text-red-300">Selected color is unavailable. Choose a different one.</p>
+            )}
 
             {tab === 'join' && (
               <>
@@ -129,11 +157,11 @@ export default function SharedGameSetup({ onBack }: SharedGameSetupProps) {
 
             <div className="flex gap-2 mt-1">
               {tab === 'create' ? (
-                <button className="btn btn-primary" disabled={isBusy} onClick={handleCreate}>
+                <button className="btn btn-primary" disabled={isBusy || selectedColorTaken} onClick={handleCreate}>
                   {isBusy ? 'Connecting...' : 'Create Shared Game'}
                 </button>
               ) : (
-                <button className="btn btn-primary" disabled={isBusy} onClick={handleJoin}>
+                <button className="btn btn-primary" disabled={isBusy || selectedColorTaken} onClick={handleJoin}>
                   {isBusy ? 'Connecting...' : 'Join Shared Game'}
                 </button>
               )}

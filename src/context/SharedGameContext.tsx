@@ -57,6 +57,7 @@ interface SharedGameContextType {
   roomCode: string | null;
   broker: BrokerOption | null;
   players: SharedPlayer[];
+  takenColors: string[];
   localSeat: number | null;
   createRoom: (args: CreateArgs) => void;
   joinRoom: (args: JoinArgs) => void;
@@ -75,6 +76,7 @@ const SharedGameContext = createContext<SharedGameContextType>({
   roomCode: null,
   broker: null,
   players: [],
+  takenColors: [],
   localSeat: null,
   createRoom: () => {},
   joinRoom: () => {},
@@ -100,6 +102,24 @@ function makeCode(): string {
 
 function getTopic(roomCode: string): string {
   return `pente/shared/v1/${roomCode}`;
+}
+
+function normalizeColor(color: string): string {
+  return color.trim().toLowerCase();
+}
+
+function colorTakenByOther(players: SharedPlayer[], color: string, clientId: string): boolean {
+  const wanted = normalizeColor(color);
+  return players.some(p => p.clientId !== clientId && normalizeColor(p.color) === wanted);
+}
+
+function extractTakenColors(players: SharedPlayer[]): string[] {
+  const seen = new Set<string>();
+  for (const p of players) {
+    const key = normalizeColor(p.color);
+    if (key) seen.add(key);
+  }
+  return Array.from(seen);
 }
 
 function safeParse<T>(payload: Uint8Array): T | null {
@@ -169,6 +189,7 @@ export function SharedGameProvider({ children }: { children: ReactNode }) {
   const [roomCode, setRoomCode] = useState<string | null>(null);
   const [broker, setBroker] = useState<BrokerOption | null>(null);
   const [players, setPlayers] = useState<SharedPlayer[]>([]);
+  const [takenColors, setTakenColors] = useState<string[]>([]);
   const [localSeat, setLocalSeat] = useState<number | null>(null);
 
   const clientRef = useRef<MqttClient | null>(null);
@@ -210,6 +231,7 @@ export function SharedGameProvider({ children }: { children: ReactNode }) {
     setRoomCode(null);
     setBroker(null);
     setPlayers([]);
+    setTakenColors([]);
     setLocalSeat(null);
     roomCodeRef.current = null;
     clearSharedSession();
@@ -239,6 +261,18 @@ export function SharedGameProvider({ children }: { children: ReactNode }) {
     );
   }, []);
 
+  const publishJoinDenied = useCallback((clientId: string, reason: string, colors: string[]) => {
+    const client = clientRef.current;
+    const code = roomCodeRef.current;
+    if (!client || !code) return;
+
+    client.publish(
+      `${getTopic(code)}/join-denied`,
+      JSON.stringify({ type: 'join-denied', clientId, reason, takenColors: colors }),
+      { qos: 1 }
+    );
+  }, []);
+
   const applyHostMove = useCallback((seat: number, position: Position) => {
     const current = gameStateRef.current;
     if (!current || current.gameOver) return;
@@ -262,6 +296,15 @@ export function SharedGameProvider({ children }: { children: ReactNode }) {
       if (!msg || msg.type !== 'join') return;
 
       setPlayers(prev => {
+        if (colorTakenByOther(prev, msg.player.color, msg.player.clientId)) {
+          publishJoinDenied(
+            msg.player.clientId,
+            'That color is already taken. Pick a different color.',
+            extractTakenColors(prev)
+          );
+          return prev;
+        }
+
         const existing = prev.find(p => p.clientId === msg.player.clientId);
         let nextPlayers = prev;
         if (existing) {
@@ -277,9 +320,22 @@ export function SharedGameProvider({ children }: { children: ReactNode }) {
           }];
         }
 
+        setTakenColors(extractTakenColors(nextPlayers));
         publishRoster(nextPlayers, phaseRef.current === 'in-game');
         return nextPlayers;
       });
+      return;
+    }
+
+    if (topic === `${base}/join-denied`) {
+      const msg = safeParse<{ type: 'join-denied'; clientId: string; reason: string; takenColors?: string[] }>(payload);
+      if (!msg || msg.type !== 'join-denied') return;
+      if (msg.clientId !== localIdRef.current) return;
+      if (Array.isArray(msg.takenColors)) {
+        setTakenColors(msg.takenColors.map(normalizeColor));
+      }
+      setError(msg.reason || 'Unable to join with the selected color.');
+      setPhase('error');
       return;
     }
 
@@ -287,6 +343,7 @@ export function SharedGameProvider({ children }: { children: ReactNode }) {
       const msg = safeParse<{ type: 'roster'; players: SharedPlayer[]; gameStarted: boolean }>(payload);
       if (!msg || msg.type !== 'roster') return;
       setPlayers(msg.players);
+      setTakenColors(extractTakenColors(msg.players));
       const mine = msg.players.find(p => p.clientId === localIdRef.current);
       setLocalSeat(mine?.seat ?? null);
       setPhase(msg.gameStarted ? 'in-game' : 'lobby');
@@ -297,6 +354,7 @@ export function SharedGameProvider({ children }: { children: ReactNode }) {
       const msg = safeParse<{ type: 'start'; gameState: GameState; players: SharedPlayer[] }>(payload);
       if (!msg || msg.type !== 'start') return;
       setPlayers(msg.players);
+      setTakenColors(extractTakenColors(msg.players));
       const mine = msg.players.find(p => p.clientId === localIdRef.current);
       setLocalSeat(mine?.seat ?? null);
       loadExternalGame(msg.gameState);
@@ -316,7 +374,7 @@ export function SharedGameProvider({ children }: { children: ReactNode }) {
       if (!msg || msg.type !== 'move') return;
       applyHostMove(msg.seat, msg.position);
     }
-  }, [applyHostMove, loadExternalGame, publishRoster]);
+  }, [applyHostMove, loadExternalGame, publishJoinDenied, publishRoster]);
 
   const connectToBroker = useCallback((onConnected: () => void, preferredBrokerId?: string) => {
     const attemptToken = ++connectAttemptRef.current;
@@ -436,6 +494,7 @@ export function SharedGameProvider({ children }: { children: ReactNode }) {
         seat: 0,
       };
       setPlayers([host]);
+      setTakenColors(extractTakenColors([host]));
       setLocalSeat(0);
       saveSharedSession({
         roomCode: room,
@@ -500,6 +559,16 @@ export function SharedGameProvider({ children }: { children: ReactNode }) {
 
   const startSharedGame = useCallback(() => {
     if (role !== 'host' || players.length < 2) return;
+
+    const seen = new Set<string>();
+    for (const p of players) {
+      const key = normalizeColor(p.color);
+      if (seen.has(key)) {
+        setError('Two players cannot share the same color.');
+        return;
+      }
+      seen.add(key);
+    }
 
     const sorted = [...players].sort((a, b) => a.seat - b.seat);
     const config = {
@@ -609,6 +678,7 @@ export function SharedGameProvider({ children }: { children: ReactNode }) {
           };
           const others = prev.filter(p => p.clientId !== localIdRef.current);
           const nextPlayers = [hostPlayer, ...others].slice(0, 4).map((p, idx) => ({ ...p, seat: idx }));
+          setTakenColors(extractTakenColors(nextPlayers));
           setLocalSeat(0);
           const gameStarted = hadSavedGame && !!gameStateRef.current && !gameStateRef.current.gameOver;
           publishRoster(nextPlayers, gameStarted);
@@ -647,6 +717,7 @@ export function SharedGameProvider({ children }: { children: ReactNode }) {
     roomCode,
     broker,
     players,
+    takenColors,
     localSeat,
     createRoom,
     joinRoom,
@@ -663,6 +734,7 @@ export function SharedGameProvider({ children }: { children: ReactNode }) {
     roomCode,
     broker,
     players,
+    takenColors,
     localSeat,
     createRoom,
     joinRoom,
