@@ -15,6 +15,7 @@ A polished, fully playable browser-based version of the classic board game Pente
 - **Accessibility** — keyboard navigation, screen reader support, color-blind mode
 - **Settings** — coordinates toggle, sound, animation speed, high contrast, color-blind mode
 - **Customizable** — player names and colors
+- **Shared game mode** — create/join a multi-device room with a 6-character code via MQTT
 
 ## Tech Stack
 
@@ -24,6 +25,7 @@ A polished, fully playable browser-based version of the classic board game Pente
 - Vitest
 
 Entirely client-side — no backend, no database, no authentication.
+Shared mode uses public MQTT brokers over secure WebSockets.
 
 ## Getting Started
 
@@ -77,10 +79,18 @@ src/
 ├── engine/          # Pure game logic (types, board, validation, captures, victory, engine)
 │   └── __tests__/   # 45 unit tests
 ├── components/      # React UI components
-├── context/         # React Context providers (game state, settings)
+├── context/         # React Context providers (game state, settings, shared MQTT)
 ├── hooks/           # Custom hooks
 └── utils/           # Storage, sound, color utilities
 ```
+
+## Shared Game Mode
+
+- Host creates a room and gets a 6-character game code.
+- Other players join with that code from another browser/device.
+- Only name and color are chosen by players; game data is plain JSON (not encrypted).
+- Broker connection is automatic with fallback: `broker.emqx.io`, `test.mosquitto.org`, `broker.hivemq.com`.
+- Host is authoritative for move validation and broadcasts board state to all players.
 
 ## Game Rules
 

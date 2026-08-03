@@ -2,12 +2,13 @@ import { hasSavedGame } from '../utils/storage';
 
 interface MainMenuProps {
   onNewGame: () => void;
+  onSharedGame: () => void;
   onResume: () => void;
   onRules: () => void;
   onSettings: () => void;
 }
 
-export default function MainMenu({ onNewGame, onResume, onRules, onSettings }: MainMenuProps) {
+export default function MainMenu({ onNewGame, onSharedGame, onResume, onRules, onSettings }: MainMenuProps) {
   const canResume = hasSavedGame();
 
   return (
@@ -20,6 +21,9 @@ export default function MainMenu({ onNewGame, onResume, onRules, onSettings }: M
       <div className="flex flex-col gap-3 w-full max-w-xs">
         <button className="btn btn-primary text-lg" onClick={onNewGame}>
           New Game
+        </button>
+        <button className="btn btn-secondary text-lg" onClick={onSharedGame}>
+          Create / Join Shared Game
         </button>
         <button
           className="btn btn-secondary text-lg"

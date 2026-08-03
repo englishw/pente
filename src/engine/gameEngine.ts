@@ -12,6 +12,7 @@ export function createGame(config: GameConfig): GameState {
     name: config.playerNames[i] || `Player ${i + 1}`,
     color: config.playerColors[i] || DEFAULT_COLORS[i],
     captures: 0,
+    capturedStones: [],
   }));
 
   return {
@@ -38,6 +39,14 @@ export function makeMove(state: GameState, position: Position): GameState {
 
   // Step 1: Detect and process captures
   const captures = detectCaptures(board, position, currentPlayer.id);
+  const capturedStonePlayerIds = captures.flatMap(pair => {
+    const s1 = board[pair.pos1.row][pair.pos1.col];
+    const s2 = board[pair.pos2.row][pair.pos2.col];
+    const ids: number[] = [];
+    if (s1 !== null) ids.push(s1);
+    if (s2 !== null) ids.push(s2);
+    return ids;
+  });
   if (captures.length > 0) {
     board = processCaptures(board, captures);
   }
@@ -45,7 +54,11 @@ export function makeMove(state: GameState, position: Position): GameState {
   // Update player captures
   const players = state.players.map(p =>
     p.id === currentPlayer.id
-      ? { ...p, captures: p.captures + captures.length }
+      ? {
+          ...p,
+          captures: p.captures + captures.length,
+          capturedStones: [...p.capturedStones, ...capturedStonePlayerIds],
+        }
       : { ...p }
   );
 
@@ -54,6 +67,7 @@ export function makeMove(state: GameState, position: Position): GameState {
     position,
     playerId: currentPlayer.id,
     captures,
+    capturedStonePlayerIds,
     turnNumber: state.turnNumber,
   };
 

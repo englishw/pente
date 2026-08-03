@@ -21,7 +21,7 @@ describe('isValidMove', () => {
 
   it('rejects occupied intersections', () => {
     let state = createGame(defaultConfig);
-    state = { ...state, board: state.board.map(r => [...r]), moves: [{ position: { row: CENTER, col: CENTER }, playerId: 0, captures: [], turnNumber: 1 }] };
+    state = { ...state, board: state.board.map(r => [...r]), moves: [{ position: { row: CENTER, col: CENTER }, playerId: 0, captures: [], capturedStonePlayerIds: [], turnNumber: 1 }] };
     state.board[CENTER][CENTER] = 0;
     expect(isValidMove(state, { row: CENTER, col: CENTER })).toBe(false);
   });
@@ -34,7 +34,7 @@ describe('isValidMove', () => {
 
   it('allows any empty position after first move', () => {
     let state = createGame(defaultConfig);
-    state = { ...state, board: state.board.map(r => [...r]), moves: [{ position: { row: CENTER, col: CENTER }, playerId: 0, captures: [], turnNumber: 1 }] };
+    state = { ...state, board: state.board.map(r => [...r]), moves: [{ position: { row: CENTER, col: CENTER }, playerId: 0, captures: [], capturedStonePlayerIds: [], turnNumber: 1 }] };
     state.board[CENTER][CENTER] = 0;
     expect(isValidMove(state, { row: 0, col: 0 })).toBe(true);
     expect(isValidMove(state, { row: 18, col: 18 })).toBe(true);

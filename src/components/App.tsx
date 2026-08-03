@@ -1,18 +1,21 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useGame } from '../context/GameContext';
+import { useSharedGame } from '../context/SharedGameContext';
 import type { GameConfig } from '../engine/types';
 import MainMenu from './MainMenu';
 import GameSetup from './GameSetup';
 import GameView from './GameView';
 import Rules from './Rules';
 import Settings from './Settings';
+import SharedGameSetup from './SharedGameSetup';
 
-type Screen = 'menu' | 'setup' | 'game' | 'rules' | 'settings';
+type Screen = 'menu' | 'setup' | 'shared' | 'game' | 'rules' | 'settings';
 
 export default function App() {
   const [screen, setScreen] = useState<Screen>('menu');
   const [prevScreen, setPrevScreen] = useState<Screen>('menu');
   const { startGame, loadSavedGame } = useGame();
+  const { phase, mode, leaveSharedGame } = useSharedGame();
 
   const goTo = useCallback((s: Screen) => {
     setPrevScreen(screen);
@@ -34,11 +37,37 @@ export default function App() {
     setScreen(prevScreen === 'settings' ? 'menu' : prevScreen);
   }, [prevScreen]);
 
+  useEffect(() => {
+    if (mode !== 'shared') return;
+    if (phase === 'in-game') {
+      setScreen('game');
+      return;
+    }
+    if (phase === 'lobby' && screen === 'game') {
+      setScreen('shared');
+    }
+  }, [mode, phase, screen]);
+
+  const handleMenuFromGame = useCallback(() => {
+    if (mode === 'shared') {
+      leaveSharedGame();
+    }
+    goTo('menu');
+  }, [goTo, leaveSharedGame, mode]);
+
+  const handleSharedBack = useCallback(() => {
+    if (mode === 'shared') {
+      leaveSharedGame();
+    }
+    goTo('menu');
+  }, [goTo, leaveSharedGame, mode]);
+
   return (
     <div className="h-full flex flex-col">
       {screen === 'menu' && (
         <MainMenu
           onNewGame={() => goTo('setup')}
+          onSharedGame={() => goTo('shared')}
           onResume={handleResume}
           onRules={() => goTo('rules')}
           onSettings={() => goTo('settings')}
@@ -50,9 +79,12 @@ export default function App() {
           onBack={() => goTo('menu')}
         />
       )}
+      {screen === 'shared' && (
+        <SharedGameSetup onBack={handleSharedBack} />
+      )}
       {screen === 'game' && (
         <GameView
-          onMenu={() => goTo('menu')}
+          onMenu={handleMenuFromGame}
           onNewGame={() => goTo('setup')}
           onSettings={() => goTo('settings')}
         />

@@ -17,6 +17,7 @@ export interface Move {
   position: Position;
   playerId: number;
   captures: CapturedPair[];
+  capturedStonePlayerIds: number[];
   turnNumber: number;
 }
 
@@ -25,6 +26,7 @@ export interface Player {
   name: string;
   color: string;
   captures: number;
+  capturedStones: number[];
 }
 
 export interface GameConfig {

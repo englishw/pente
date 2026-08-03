@@ -33,6 +33,7 @@ interface GameContextType {
   placeMoveAction: (position: Position) => void;
   undoMoveAction: () => void;
   restartGame: () => void;
+  loadExternalGame: (state: GameState) => void;
   loadSavedGame: () => boolean;
   clearSavedGame: () => void;
 }
@@ -43,6 +44,7 @@ const GameContext = createContext<GameContextType>({
   placeMoveAction: () => {},
   undoMoveAction: () => {},
   restartGame: () => {},
+  loadExternalGame: () => {},
   loadSavedGame: () => false,
   clearSavedGame: () => {},
 });
@@ -73,6 +75,10 @@ export function GameProvider({ children }: { children: ReactNode }) {
     dispatch({ type: 'RESTART_GAME' });
   }, []);
 
+  const loadExternalGame = useCallback((state: GameState) => {
+    dispatch({ type: 'LOAD_GAME', state });
+  }, []);
+
   const loadSavedGame = useCallback((): boolean => {
     const saved = loadGame();
     if (saved) {
@@ -93,6 +99,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       placeMoveAction,
       undoMoveAction,
       restartGame,
+      loadExternalGame,
       loadSavedGame,
       clearSavedGame,
     }}>

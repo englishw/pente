@@ -7,9 +7,23 @@ interface VictoryOverlayProps {
   gameState: GameState;
   onNewGame: () => void;
   onRematch: () => void;
+  isShared?: boolean;
+  isSharedHost?: boolean;
+  onSharedReplay?: () => void;
+  onSharedLobby?: () => void;
+  onSharedLeave?: () => void;
 }
 
-export default function VictoryOverlay({ gameState, onNewGame, onRematch }: VictoryOverlayProps) {
+export default function VictoryOverlay({
+  gameState,
+  onNewGame,
+  onRematch,
+  isShared = false,
+  isSharedHost = false,
+  onSharedReplay,
+  onSharedLobby,
+  onSharedLeave,
+}: VictoryOverlayProps) {
   const { settings } = useSettings();
 
   useEffect(() => {
@@ -36,10 +50,27 @@ export default function VictoryOverlay({ gameState, onNewGame, onRematch }: Vict
             ? 'Five stones in a row!'
             : `${winner.captures} captured pairs!`}
         </p>
-        <div className="flex gap-3 justify-center">
-          <button className="btn btn-secondary" onClick={onNewGame}>New Game</button>
-          <button className="btn btn-primary" onClick={onRematch}>Rematch</button>
-        </div>
+        {!isShared && (
+          <div className="flex gap-3 justify-center">
+            <button className="btn btn-secondary" onClick={onNewGame}>New Game</button>
+            <button className="btn btn-primary" onClick={onRematch}>Rematch</button>
+          </div>
+        )}
+        {isShared && (
+          <div className="flex flex-col gap-3 items-center">
+            {isSharedHost ? (
+              <div className="flex gap-3 justify-center">
+                <button className="btn btn-primary" onClick={onSharedReplay}>Play Again</button>
+                <button className="btn btn-secondary" onClick={onSharedLobby}>Back To Lobby</button>
+              </div>
+            ) : (
+              <p className="text-sm text-slate-400">
+                Waiting for the host to start the next round.
+              </p>
+            )}
+            <button className="btn btn-secondary" onClick={onSharedLeave}>Leave Shared Game</button>
+          </div>
+        )}
       </div>
     </div>
   );

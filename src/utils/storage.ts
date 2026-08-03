@@ -31,7 +31,25 @@ export function loadGame(): GameState | null {
   try {
     const data = localStorage.getItem(GAME_KEY);
     if (!data) return null;
-    return JSON.parse(data) as GameState;
+    const parsed = JSON.parse(data) as GameState;
+
+    if (Array.isArray(parsed.players)) {
+      parsed.players = parsed.players.map(player => ({
+        ...player,
+        capturedStones: Array.isArray(player.capturedStones) ? player.capturedStones : [],
+      }));
+    }
+
+    if (Array.isArray(parsed.moves)) {
+      parsed.moves = parsed.moves.map(move => ({
+        ...move,
+        capturedStonePlayerIds: Array.isArray(move.capturedStonePlayerIds)
+          ? move.capturedStonePlayerIds
+          : [],
+      }));
+    }
+
+    return parsed;
   } catch {
     return null;
   }

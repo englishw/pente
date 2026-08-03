@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { useGame } from '../context/GameContext';
+import { useSharedGame } from '../context/SharedGameContext';
 import { useSettings } from '../context/SettingsContext';
 import { BOARD_SIZE } from '../engine/types';
 import { isValidMove } from '../engine/validation';
@@ -24,7 +25,8 @@ function toSvg(row: number, col: number): { x: number; y: number } {
 }
 
 export default function Board() {
-  const { gameState, placeMoveAction } = useGame();
+  const { gameState } = useGame();
+  const { requestMove, canLocalMove } = useSharedGame();
   const { settings } = useSettings();
   const [cursor, setCursor] = useState<{ row: number; col: number } | null>(null);
   const svgRef = useRef<SVGSVGElement>(null);
@@ -33,8 +35,9 @@ export default function Board() {
 
   const handleClick = useCallback((row: number, col: number) => {
     if (!gameState || gameState.gameOver) return;
-    placeMoveAction({ row, col });
-  }, [gameState, placeMoveAction]);
+    if (!canLocalMove(gameState)) return;
+    requestMove({ row, col });
+  }, [canLocalMove, gameState, requestMove]);
 
   // Play sounds when state changes
   const prevMovesRef = useRef(0);
@@ -75,6 +78,8 @@ export default function Board() {
   }, [cursor, gameState, handleClick]);
 
   if (!gameState) return null;
+
+  const canInteract = canLocalMove(gameState);
 
   const isWinningPos = (r: number, c: number) =>
     gameState.winningPositions.some(p => p.row === r && p.col === c);
@@ -141,7 +146,7 @@ export default function Board() {
           Array.from({ length: BOARD_SIZE }, (_, c) => {
             if (gameState.board[r][c] !== null) return null;
             const { x, y } = toSvg(r, c);
-            const valid = isValidMove(gameState, { row: r, col: c });
+            const valid = canInteract && isValidMove(gameState, { row: r, col: c });
             return (
               <circle
                 key={`target-${r}-${c}`}

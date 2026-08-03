@@ -92,9 +92,21 @@ describe('makeMove', () => {
     state = makeMove(state, { row: CENTER, col: CENTER + 3 }); // P0 captures!
 
     expect(state.players[0].captures).toBe(1);
+    expect(state.players[0].capturedStones).toEqual([1, 1]);
     // Captured stones should be removed
     expect(state.board[CENTER][CENTER + 1]).toBeNull();
     expect(state.board[CENTER][CENTER + 2]).toBeNull();
+  });
+
+  it('tracks captured colors in mixed captures', () => {
+    let state = createGame(config3);
+    state = makeMove(state, { row: CENTER, col: CENTER }); // P0
+    state = makeMove(state, { row: CENTER, col: CENTER + 1 }); // P1
+    state = makeMove(state, { row: CENTER, col: CENTER + 2 }); // P2
+    state = makeMove(state, { row: CENTER, col: CENTER + 3 }); // P0 captures P2 and P1
+
+    expect(state.players[0].captures).toBe(1);
+    expect(state.players[0].capturedStones).toEqual([2, 1]);
   });
 });
 

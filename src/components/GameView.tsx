@@ -1,7 +1,8 @@
 import { useGame } from '../context/GameContext';
+import { useSharedGame } from '../context/SharedGameContext';
 import Board from './Board';
 import GameInfo from './GameInfo';
-import MoveHistory from './MoveHistory';
+import CapturedStonesPanel from './CapturedStonesPanel';
 import VictoryOverlay from './VictoryOverlay';
 
 interface GameViewProps {
@@ -12,11 +13,30 @@ interface GameViewProps {
 
 export default function GameView({ onMenu, onNewGame, onSettings }: GameViewProps) {
   const { gameState, undoMoveAction, restartGame } = useGame();
+  const {
+    mode,
+    role,
+    roomCode,
+    broker,
+    canLocalMove,
+    startSharedGame,
+    returnSharedToLobby,
+    leaveSharedGame,
+  } = useSharedGame();
 
   if (!gameState) return null;
 
+  const isShared = mode === 'shared';
+  const canAct = canLocalMove(gameState);
+
   const handleRematch = () => {
+    if (isShared) return;
     restartGame();
+  };
+
+  const handleSharedLeave = () => {
+    leaveSharedGame();
+    onMenu();
   };
 
   return (
@@ -30,20 +50,28 @@ export default function GameView({ onMenu, onNewGame, onSettings }: GameViewProp
       <div className="lg:w-72 flex flex-col gap-3 shrink-0">
         <GameInfo gameState={gameState} />
 
+        {isShared && (
+          <div className="bg-slate-700/50 rounded-lg p-2 text-xs text-slate-300">
+            <div>Shared code: <span className="font-mono tracking-wider text-amber-300">{roomCode}</span></div>
+            {broker && <div>Broker: {broker.label}</div>}
+            <div>{canAct ? 'Your turn' : 'Waiting for your turn'}</div>
+          </div>
+        )}
+
         {/* Action buttons */}
         <div className="flex flex-wrap gap-2">
           <button
             className="btn btn-sm btn-secondary flex-1"
             onClick={undoMoveAction}
-            disabled={gameState.moves.length === 0}
-            style={{ opacity: gameState.moves.length === 0 ? 0.4 : 1 }}
+            disabled={isShared || gameState.moves.length === 0}
+            style={{ opacity: isShared || gameState.moves.length === 0 ? 0.4 : 1 }}
           >
             Undo
           </button>
-          <button className="btn btn-sm btn-secondary flex-1" onClick={handleRematch}>
+          <button className="btn btn-sm btn-secondary flex-1" onClick={handleRematch} disabled={isShared} style={{ opacity: isShared ? 0.4 : 1 }}>
             Restart
           </button>
-          <button className="btn btn-sm btn-secondary flex-1" onClick={onNewGame}>
+          <button className="btn btn-sm btn-secondary flex-1" onClick={onNewGame} disabled={isShared} style={{ opacity: isShared ? 0.4 : 1 }}>
             New
           </button>
           <button className="btn btn-sm btn-secondary flex-1" onClick={onSettings}>
@@ -51,7 +79,7 @@ export default function GameView({ onMenu, onNewGame, onSettings }: GameViewProp
           </button>
         </div>
 
-        <MoveHistory gameState={gameState} />
+        <CapturedStonesPanel gameState={gameState} />
 
         <button className="btn btn-sm btn-secondary mt-auto" onClick={onMenu}>
           ← Menu
@@ -64,6 +92,11 @@ export default function GameView({ onMenu, onNewGame, onSettings }: GameViewProp
           gameState={gameState}
           onNewGame={onNewGame}
           onRematch={handleRematch}
+          isShared={isShared}
+          isSharedHost={role === 'host'}
+          onSharedReplay={startSharedGame}
+          onSharedLobby={returnSharedToLobby}
+          onSharedLeave={handleSharedLeave}
         />
       )}
 
