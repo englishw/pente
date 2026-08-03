@@ -43,6 +43,10 @@ export default function App() {
       setScreen('game');
       return;
     }
+    if ((phase === 'lobby' || phase === 'connecting' || phase === 'error') && screen === 'menu') {
+      setScreen('shared');
+      return;
+    }
     if (phase === 'lobby' && screen === 'game') {
       setScreen('shared');
     }

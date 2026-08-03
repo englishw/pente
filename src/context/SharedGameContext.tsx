@@ -4,6 +4,8 @@ import type { GameState, Position } from '../engine/types';
 import { createGame, makeMove } from '../engine/gameEngine';
 import { useGame } from './GameContext';
 
+const SHARED_SESSION_KEY = 'pente-shared-session';
+
 export interface BrokerOption {
   id: string;
   label: string;
@@ -36,6 +38,15 @@ interface JoinArgs {
   code: string;
   name: string;
   color: string;
+}
+
+interface SharedSessionSnapshot {
+  roomCode: string;
+  role: 'host' | 'guest';
+  brokerId: string;
+  playerName: string;
+  playerColor: string;
+  participantId: string;
 }
 
 interface SharedGameContextType {
@@ -99,8 +110,57 @@ function safeParse<T>(payload: Uint8Array): T | null {
   }
 }
 
+function saveSharedSession(snapshot: SharedSessionSnapshot): void {
+  try {
+    localStorage.setItem(SHARED_SESSION_KEY, JSON.stringify(snapshot));
+  } catch {
+    // ignore
+  }
+}
+
+function loadSharedSession(): SharedSessionSnapshot | null {
+  try {
+    const raw = localStorage.getItem(SHARED_SESSION_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<SharedSessionSnapshot>;
+    if (
+      typeof parsed.roomCode !== 'string' ||
+      (parsed.role !== 'host' && parsed.role !== 'guest') ||
+      typeof parsed.brokerId !== 'string' ||
+      typeof parsed.playerName !== 'string' ||
+      typeof parsed.playerColor !== 'string' ||
+      typeof parsed.participantId !== 'string'
+    ) {
+      return null;
+    }
+
+    return {
+      roomCode: parsed.roomCode,
+      role: parsed.role,
+      brokerId: parsed.brokerId,
+      playerName: parsed.playerName,
+      playerColor: parsed.playerColor,
+      participantId: parsed.participantId,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function clearSharedSession(): void {
+  try {
+    localStorage.removeItem(SHARED_SESSION_KEY);
+  } catch {
+    // ignore
+  }
+}
+
+function makeParticipantId(): string {
+  return `p-${Math.random().toString(16).slice(2, 12)}`;
+}
+
 export function SharedGameProvider({ children }: { children: ReactNode }) {
-  const { gameState, loadExternalGame, placeMoveAction } = useGame();
+  const { gameState, loadExternalGame, placeMoveAction, loadSavedGame } = useGame();
 
   const [mode, setMode] = useState<SharedMode>('local');
   const [role, setRole] = useState<SharedRole>(null);
@@ -114,9 +174,12 @@ export function SharedGameProvider({ children }: { children: ReactNode }) {
   const clientRef = useRef<MqttClient | null>(null);
   const gameStateRef = useRef<GameState | null>(null);
   const roleRef = useRef<SharedRole>(null);
+  const phaseRef = useRef<SharedPhase>('idle');
   const roomCodeRef = useRef<string | null>(null);
   const localIdRef = useRef<string>('');
+  const selectedBrokerIdRef = useRef<string>(SHARED_BROKERS[0].id);
   const connectAttemptRef = useRef(0);
+  const didAutoRestoreRef = useRef(false);
 
   useEffect(() => {
     gameStateRef.current = gameState;
@@ -125,6 +188,10 @@ export function SharedGameProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     roleRef.current = role;
   }, [role]);
+
+  useEffect(() => {
+    phaseRef.current = phase;
+  }, [phase]);
 
   const disconnect = useCallback(() => {
     if (clientRef.current) {
@@ -145,6 +212,7 @@ export function SharedGameProvider({ children }: { children: ReactNode }) {
     setPlayers([]);
     setLocalSeat(null);
     roomCodeRef.current = null;
+    clearSharedSession();
   }, [disconnect]);
 
   const publishRoster = useCallback((nextPlayers: SharedPlayer[], gameStarted: boolean) => {
@@ -209,7 +277,7 @@ export function SharedGameProvider({ children }: { children: ReactNode }) {
           }];
         }
 
-        publishRoster(nextPlayers, phase === 'in-game');
+        publishRoster(nextPlayers, phaseRef.current === 'in-game');
         return nextPlayers;
       });
       return;
@@ -248,16 +316,23 @@ export function SharedGameProvider({ children }: { children: ReactNode }) {
       if (!msg || msg.type !== 'move') return;
       applyHostMove(msg.seat, msg.position);
     }
-  }, [applyHostMove, loadExternalGame, phase, publishRoster]);
+  }, [applyHostMove, loadExternalGame, publishRoster]);
 
-  const connectToBroker = useCallback((onConnected: () => void) => {
+  const connectToBroker = useCallback((onConnected: () => void, preferredBrokerId?: string) => {
     const attemptToken = ++connectAttemptRef.current;
-    const clientId = `pente-${Math.random().toString(16).slice(2, 10)}`;
-    localIdRef.current = clientId;
+    const participantId = localIdRef.current || makeParticipantId();
+    localIdRef.current = participantId;
+    const clientId = `pente-${participantId}`;
     let attemptIndex = 0;
+    const preferredIndex = preferredBrokerId
+      ? SHARED_BROKERS.findIndex(b => b.id === preferredBrokerId)
+      : -1;
+    const brokerOrder = preferredIndex >= 0
+      ? [SHARED_BROKERS[preferredIndex], ...SHARED_BROKERS.filter((_, i) => i !== preferredIndex)]
+      : SHARED_BROKERS;
 
     const tryConnect = () => {
-      const selected = SHARED_BROKERS[attemptIndex];
+      const selected = brokerOrder[attemptIndex];
       if (!selected) {
         setError('Could not connect to any public MQTT broker.');
         setPhase('error');
@@ -319,6 +394,7 @@ export function SharedGameProvider({ children }: { children: ReactNode }) {
           }
 
           clientRef.current = client;
+          selectedBrokerIdRef.current = selected.id;
           setError(null);
           onConnected();
         });
@@ -340,6 +416,9 @@ export function SharedGameProvider({ children }: { children: ReactNode }) {
 
   const createRoom = useCallback(({ name, color }: CreateArgs) => {
     const hostName = name.trim() || 'Host';
+    if (!localIdRef.current) {
+      localIdRef.current = makeParticipantId();
+    }
     const room = makeCode();
     roomCodeRef.current = room;
 
@@ -358,6 +437,14 @@ export function SharedGameProvider({ children }: { children: ReactNode }) {
       };
       setPlayers([host]);
       setLocalSeat(0);
+      saveSharedSession({
+        roomCode: room,
+        role: 'host',
+        brokerId: selectedBrokerIdRef.current,
+        playerName: hostName,
+        playerColor: color,
+        participantId: localIdRef.current,
+      });
       publishRoster([host], false);
       setPhase('lobby');
     });
@@ -366,6 +453,9 @@ export function SharedGameProvider({ children }: { children: ReactNode }) {
   const joinRoom = useCallback(({ code, name, color }: JoinArgs) => {
     const room = normalizeCode(code);
     const guestName = name.trim() || 'Guest';
+    if (!localIdRef.current) {
+      localIdRef.current = makeParticipantId();
+    }
 
     if (room.length !== 6) {
       setError('Game code must be exactly 6 characters.');
@@ -396,6 +486,14 @@ export function SharedGameProvider({ children }: { children: ReactNode }) {
         }),
         { qos: 1 }
       );
+      saveSharedSession({
+        roomCode: room,
+        role: 'guest',
+        brokerId: selectedBrokerIdRef.current,
+        playerName: guestName,
+        playerColor: color,
+        participantId: localIdRef.current,
+      });
       setPhase('lobby');
     });
   }, [connectToBroker]);
@@ -470,6 +568,76 @@ export function SharedGameProvider({ children }: { children: ReactNode }) {
       disconnect();
     };
   }, [disconnect]);
+
+  useEffect(() => {
+    if (didAutoRestoreRef.current) return;
+    didAutoRestoreRef.current = true;
+
+    const snapshot = loadSharedSession();
+    if (!snapshot) return;
+
+    const room = normalizeCode(snapshot.roomCode);
+    if (room.length !== 6) {
+      clearSharedSession();
+      return;
+    }
+
+    localIdRef.current = snapshot.participantId;
+
+    roomCodeRef.current = room;
+    setMode('shared');
+    setRole(snapshot.role);
+    setPhase('connecting');
+    setError(null);
+    setRoomCode(room);
+
+    // Restore cached board immediately while live sync reconnects.
+    const hadSavedGame = loadSavedGame();
+
+    connectToBroker(() => {
+      const client = clientRef.current;
+      if (!client) return;
+
+      if (snapshot.role === 'host') {
+        setPlayers(prev => {
+          const existing = prev.find(p => p.clientId === localIdRef.current);
+          const hostPlayer: SharedPlayer = existing ?? {
+            clientId: localIdRef.current,
+            name: snapshot.playerName,
+            color: snapshot.playerColor,
+            seat: 0,
+          };
+          const others = prev.filter(p => p.clientId !== localIdRef.current);
+          const nextPlayers = [hostPlayer, ...others].slice(0, 4).map((p, idx) => ({ ...p, seat: idx }));
+          setLocalSeat(0);
+          const gameStarted = hadSavedGame && !!gameStateRef.current && !gameStateRef.current.gameOver;
+          publishRoster(nextPlayers, gameStarted);
+          if (gameStateRef.current && gameStarted) {
+            publishState(gameStateRef.current);
+            setPhase('in-game');
+          } else {
+            setPhase('lobby');
+          }
+          return nextPlayers;
+        });
+        return;
+      }
+
+      client.publish(
+        `${getTopic(room)}/join`,
+        JSON.stringify({
+          type: 'join',
+          player: {
+            clientId: localIdRef.current,
+            name: snapshot.playerName,
+            color: snapshot.playerColor,
+          },
+        }),
+        { qos: 1 }
+      );
+      setPhase('lobby');
+    }, snapshot.brokerId);
+  }, [connectToBroker, loadSavedGame, publishRoster, publishState]);
 
   const value = useMemo(() => ({
     mode,
