@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { PRESET_COLORS } from '../utils/colors';
 import { useSharedGame } from '../context/SharedGameContext';
 
@@ -17,6 +17,7 @@ export default function SharedGameSetup({ onBack }: SharedGameSetupProps) {
     broker,
     players,
     takenColors,
+    shareLink,
     createRoom,
     joinRoom,
     startSharedGame,
@@ -27,6 +28,16 @@ export default function SharedGameSetup({ onBack }: SharedGameSetupProps) {
   const [name, setName] = useState('');
   const [color, setColor] = useState(PRESET_COLORS[0]);
   const [joinCode, setJoinCode] = useState('');
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    if (!shareLink || shareLink === '/') return;
+    const codeMatch = shareLink.match(/[?&]game=([A-Z0-9]{1,6})/i);
+    if (codeMatch?.[1]) {
+      setJoinCode(codeMatch[1].toUpperCase());
+      setTab('join');
+    }
+  }, [shareLink]);
 
   const isBusy = phase === 'connecting';
   const normalizedTakenColors = useMemo(
@@ -60,6 +71,23 @@ export default function SharedGameSetup({ onBack }: SharedGameSetupProps) {
     leaveSharedGame();
     onBack();
   };
+
+  const handleCopyLink = async () => {
+    const shareUrl = typeof window !== 'undefined' ? `${window.location.origin}${shareLink}` : shareLink;
+    if (!shareUrl || shareUrl === '/') return;
+
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(shareUrl);
+      }
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1600);
+    } catch {
+      setCopied(false);
+    }
+  };
+
+  const shareUrl = typeof window !== 'undefined' ? `${window.location.origin}${shareLink}` : shareLink;
 
   return (
     <div className="max-w-3xl mx-auto p-6 h-full fade-in flex flex-col gap-5">
@@ -173,16 +201,13 @@ export default function SharedGameSetup({ onBack }: SharedGameSetupProps) {
 
           <div className="bg-slate-800/35 border border-slate-600/40 rounded-xl p-4 text-sm text-slate-300 space-y-3">
             <p>
-              Shared games are entirely browser-based and use public MQTT brokers over secure WebSockets.
+              Share a short link with your opponent and they can join in a few taps.
             </p>
             <p>
-              The app tries broker.emqx.io, test.mosquitto.org, and broker.hivemq.com automatically.
+              The host creates the room, picks a name and color, and sends the link. The other player opens it, enters their name, and joins instantly.
             </p>
             <p>
-              Data is sent as plain JSON messages (name, color, moves, and board state). Do not use private personal data.
-            </p>
-            <p>
-              No backend server is required. This works on GitHub Pages and other static hosts.
+              This works without a server. The game uses secure public brokers to relay moves and board updates between players.
             </p>
           </div>
         </div>
@@ -200,6 +225,20 @@ export default function SharedGameSetup({ onBack }: SharedGameSetupProps) {
                 {broker.label}
               </div>
             )}
+          </div>
+
+          <div className="rounded-lg border border-amber-400/30 bg-amber-500/10 p-3 text-sm text-slate-200">
+            <div className="font-semibold text-amber-200 mb-1">Share this link</div>
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="break-all font-mono text-amber-100 flex-1">{shareUrl}</div>
+              <button
+                type="button"
+                className="btn btn-sm btn-secondary whitespace-nowrap"
+                onClick={handleCopyLink}
+              >
+                {copied ? 'Copied!' : 'Copy'}
+              </button>
+            </div>
           </div>
 
           <div>

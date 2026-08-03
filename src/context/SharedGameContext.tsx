@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import mqtt, { type IClientOptions, type MqttClient } from 'mqtt';
 import type { GameState, Position } from '../engine/types';
 import { createGame, makeMove } from '../engine/gameEngine';
+import { buildSharedGameUrl, getSharedGameCodeFromSearch, normalizeSharedGameCode } from '../utils/sharedGameLinks';
 import { useGame } from './GameContext';
 
 const SHARED_SESSION_KEY = 'pente-shared-session';
@@ -59,6 +60,7 @@ interface SharedGameContextType {
   players: SharedPlayer[];
   takenColors: string[];
   localSeat: number | null;
+  shareLink: string;
   createRoom: (args: CreateArgs) => void;
   joinRoom: (args: JoinArgs) => void;
   startSharedGame: () => void;
@@ -78,6 +80,7 @@ const SharedGameContext = createContext<SharedGameContextType>({
   players: [],
   takenColors: [],
   localSeat: null,
+  shareLink: '/',
   createRoom: () => {},
   joinRoom: () => {},
   startSharedGame: () => {},
@@ -86,10 +89,6 @@ const SharedGameContext = createContext<SharedGameContextType>({
   requestMove: () => {},
   canLocalMove: () => true,
 });
-
-function normalizeCode(input: string): string {
-  return input.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6);
-}
 
 function makeCode(): string {
   const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -188,6 +187,7 @@ export function SharedGameProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState<string | null>(null);
   const [roomCode, setRoomCode] = useState<string | null>(null);
   const [broker, setBroker] = useState<BrokerOption | null>(null);
+  const [shareLink, setShareLink] = useState<string>('/');
   const [players, setPlayers] = useState<SharedPlayer[]>([]);
   const [takenColors, setTakenColors] = useState<string[]>([]);
   const [localSeat, setLocalSeat] = useState<number | null>(null);
@@ -233,8 +233,14 @@ export function SharedGameProvider({ children }: { children: ReactNode }) {
     setPlayers([]);
     setTakenColors([]);
     setLocalSeat(null);
+    setShareLink('/');
     roomCodeRef.current = null;
     clearSharedSession();
+    if (typeof window !== 'undefined') {
+      const nextUrl = new URL(window.location.href);
+      nextUrl.searchParams.delete('game');
+      window.history.replaceState({}, '', `${nextUrl.pathname}${nextUrl.search}`);
+    }
   }, [disconnect]);
 
   const publishRoster = useCallback((nextPlayers: SharedPlayer[], gameStarted: boolean) => {
@@ -510,7 +516,7 @@ export function SharedGameProvider({ children }: { children: ReactNode }) {
   }, [connectToBroker, publishRoster]);
 
   const joinRoom = useCallback(({ code, name, color }: JoinArgs) => {
-    const room = normalizeCode(code);
+    const room = normalizeSharedGameCode(code);
     const guestName = name.trim() || 'Guest';
     if (!localIdRef.current) {
       localIdRef.current = makeParticipantId();
@@ -645,7 +651,7 @@ export function SharedGameProvider({ children }: { children: ReactNode }) {
     const snapshot = loadSharedSession();
     if (!snapshot) return;
 
-    const room = normalizeCode(snapshot.roomCode);
+    const room = normalizeSharedGameCode(snapshot.roomCode);
     if (room.length !== 6) {
       clearSharedSession();
       return;
@@ -709,6 +715,33 @@ export function SharedGameProvider({ children }: { children: ReactNode }) {
     }, snapshot.brokerId);
   }, [connectToBroker, loadSavedGame, publishRoster, publishState]);
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const codeFromUrl = getSharedGameCodeFromSearch(window.location.search);
+    if (codeFromUrl) {
+      setShareLink(buildSharedGameUrl(codeFromUrl));
+      if (!roomCodeRef.current) {
+        roomCodeRef.current = codeFromUrl;
+        setRoomCode(codeFromUrl);
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!roomCode) {
+      setShareLink('/');
+      return;
+    }
+    const nextLink = buildSharedGameUrl(roomCode);
+    setShareLink(nextLink);
+    if (typeof window !== 'undefined') {
+      const nextUrl = new URL(window.location.href);
+      nextUrl.searchParams.set('game', roomCode);
+      window.history.replaceState({}, '', `${nextUrl.pathname}${nextUrl.search}`);
+    }
+  }, [roomCode]);
+
   const value = useMemo(() => ({
     mode,
     role,
@@ -719,6 +752,7 @@ export function SharedGameProvider({ children }: { children: ReactNode }) {
     players,
     takenColors,
     localSeat,
+    shareLink,
     createRoom,
     joinRoom,
     startSharedGame,
@@ -743,6 +777,7 @@ export function SharedGameProvider({ children }: { children: ReactNode }) {
     leaveSharedGame,
     requestMove,
     canLocalMove,
+    shareLink,
   ]);
 
   return (
