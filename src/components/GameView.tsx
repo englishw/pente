@@ -45,10 +45,8 @@ export default function GameView({ onMenu, onNewGame, onSettings }: GameViewProp
     onMenu();
   };
 
-  const sidePanelContent = (
+  const controlsContent = (
     <>
-      <GameInfo gameState={gameState} />
-
       {isShared && (
         <div className="bg-slate-700/50 rounded-lg p-2 text-xs text-slate-300">
           <div>Shared code: <span className="font-mono tracking-wider text-amber-300">{roomCode}</span></div>
@@ -86,11 +84,23 @@ export default function GameView({ onMenu, onNewGame, onSettings }: GameViewProp
     </>
   );
 
+  const desktopSidePanelContent = (
+    <>
+      <GameInfo gameState={gameState} />
+      {controlsContent}
+    </>
+  );
+
   return (
     <div className="flex flex-col lg:flex-row gap-3 p-3 lg:p-4 h-full overflow-y-auto lg:overflow-hidden fade-in">
       {/* Board area */}
       <div className="flex-1 flex items-center justify-center min-h-0 shrink-0">
         <Board />
+      </div>
+
+      {/* Mobile always-visible summary */}
+      <div className="lg:hidden">
+        <GameInfo gameState={gameState} />
       </div>
 
       {/* Mobile info panel */}
@@ -100,16 +110,16 @@ export default function GameView({ onMenu, onNewGame, onSettings }: GameViewProp
         onToggle={e => setMobilePanelOpen(e.currentTarget.open)}
       >
         <summary className="cursor-pointer select-none text-slate-200 font-semibold">
-          Game Info and Controls
+          More Info and Controls
         </summary>
         <div className="flex flex-col gap-3 pt-3">
-          {sidePanelContent}
+          {controlsContent}
         </div>
       </details>
 
       {/* Desktop / tablet landscape side panel */}
       <div className="hidden lg:flex lg:w-72 flex-col gap-3 shrink-0 min-h-0">
-        {sidePanelContent}
+        {desktopSidePanelContent}
       </div>
 
       {/* Victory overlay */}
