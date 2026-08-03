@@ -15,7 +15,7 @@ export default function App() {
   const [screen, setScreen] = useState<Screen>('menu');
   const [prevScreen, setPrevScreen] = useState<Screen>('menu');
   const { startGame, loadSavedGame } = useGame();
-  const { phase, mode, leaveSharedGame } = useSharedGame();
+  const { phase, mode, roomCode, leaveSharedGame } = useSharedGame();
 
   const goTo = useCallback((s: Screen) => {
     setPrevScreen(screen);
@@ -38,16 +38,18 @@ export default function App() {
   }, [prevScreen]);
 
   useEffect(() => {
+    if (roomCode) {
+      setScreen('shared');
+    }
+  }, [roomCode]);
+
+  useEffect(() => {
     if (mode !== 'shared') return;
     if (phase === 'in-game') {
       setScreen('game');
       return;
     }
-    if ((phase === 'lobby' || phase === 'connecting' || phase === 'error') && screen === 'menu') {
-      setScreen('shared');
-      return;
-    }
-    if (phase === 'lobby' && screen === 'game') {
+    if (screen !== 'shared') {
       setScreen('shared');
     }
   }, [mode, phase, screen]);

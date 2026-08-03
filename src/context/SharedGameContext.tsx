@@ -3,6 +3,7 @@ import mqtt, { type IClientOptions, type MqttClient } from 'mqtt';
 import type { GameState, Position } from '../engine/types';
 import { createGame, makeMove } from '../engine/gameEngine';
 import { buildSharedGameUrl, getSharedGameCodeFromSearch, normalizeSharedGameCode } from '../utils/sharedGameLinks';
+import { PRESET_COLORS } from '../utils/colors';
 import { useGame } from './GameContext';
 
 const SHARED_SESSION_KEY = 'pente-shared-session';
@@ -189,6 +190,7 @@ export function SharedGameProvider({ children }: { children: ReactNode }) {
   const [broker, setBroker] = useState<BrokerOption | null>(null);
   const [shareLink, setShareLink] = useState<string>('/');
   const [players, setPlayers] = useState<SharedPlayer[]>([]);
+  const [autoJoinPending, setAutoJoinPending] = useState(false);
   const [takenColors, setTakenColors] = useState<string[]>([]);
   const [localSeat, setLocalSeat] = useState<number | null>(null);
 
@@ -725,6 +727,7 @@ export function SharedGameProvider({ children }: { children: ReactNode }) {
         roomCodeRef.current = codeFromUrl;
         setRoomCode(codeFromUrl);
       }
+      setAutoJoinPending(true);
     }
   }, []);
 
@@ -741,6 +744,22 @@ export function SharedGameProvider({ children }: { children: ReactNode }) {
       window.history.replaceState({}, '', `${nextUrl.pathname}${nextUrl.search}`);
     }
   }, [roomCode]);
+
+  useEffect(() => {
+    if (!autoJoinPending || !roomCode || mode === 'shared') return;
+
+    const existing = loadSharedSession();
+    if (existing?.roomCode === roomCode) {
+      setAutoJoinPending(false);
+      return;
+    }
+
+    const joinUrlCode = roomCode;
+    const pendingName = existing?.playerName || 'Guest';
+    const pendingColor = existing?.playerColor || PRESET_COLORS[0];
+    setAutoJoinPending(false);
+    joinRoom({ code: joinUrlCode, name: pendingName, color: pendingColor });
+  }, [autoJoinPending, joinRoom, mode, roomCode]);
 
   const value = useMemo(() => ({
     mode,
