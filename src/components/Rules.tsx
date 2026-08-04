@@ -1,3 +1,5 @@
+import { APP_VERSION } from '../utils/storage';
+
 interface RulesProps {
   onBack: () => void;
 }
@@ -72,7 +74,8 @@ export default function Rules({ onBack }: RulesProps) {
           no teams. Turn order rotates clockwise.
         </p>
       </section>
-
+      <div className="mt-4 text-xs text-slate-400 text-right" aria-label="App version"> Version {APP_VERSION}
+      </div>
       <button className="btn btn-secondary mt-4" onClick={onBack}>← Back</button>
     </div>
   );

@@ -3,6 +3,8 @@ import type { GameState } from '../engine/types';
 const GAME_KEY = 'pente-game';
 const SETTINGS_KEY = 'pente-settings';
 
+export const APP_VERSION = 'v0.12';
+
 export interface Settings {
   showCoordinates: boolean;
   soundEnabled: boolean;

@@ -1,4 +1,5 @@
 import { useSettings } from '../context/SettingsContext';
+import { APP_VERSION } from '../utils/storage';
 
 interface SettingsProps {
   onBack: () => void;
@@ -52,6 +53,8 @@ export default function Settings({ onBack }: SettingsProps) {
           </div>
         </div>
       </div>
+      <div className="mt-4 text-xs text-slate-400 text-right" aria-label="App version"> Version {APP_VERSION}
+    </div>
 
       <button className="btn btn-secondary mt-6" onClick={onBack}>← Back</button>
     </div>
