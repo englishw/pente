@@ -37,7 +37,7 @@ export default function VictoryOverlay({
 
   return (
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 fade-in p-4">
-      <div className="bg-slate-800 rounded-2xl p-8 max-w-sm w-full text-center shadow-2xl border border-slate-600">
+      <div className="bg-slate-800/50 rounded-2xl p-8 max-w-sm w-full text-center shadow-2xl border border-slate-600">
         <div
           className="w-16 h-16 rounded-full mx-auto mb-4 border-4 border-amber-400"
           style={{ backgroundColor: winner.color }}

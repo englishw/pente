@@ -88,7 +88,7 @@ export default function Stone({
           cy={cy}
           r={radius + 1.6}
           fill="none"
-          stroke="rgba(245,158,11,0.95)"
+          stroke="rgba(0, 0, 0, 0.95)"
           strokeWidth="1.2"
           className="stone-recent-ring"
         />
