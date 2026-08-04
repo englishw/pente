@@ -6,7 +6,7 @@ interface CapturedStonesPanelProps {
 
 export default function CapturedStonesPanel({ gameState }: CapturedStonesPanelProps) {
   return (
-    <div className="bg-slate-700/40 rounded-lg p-3 max-h-56 overflow-y-auto">
+    <div className="bg-slate-700/40 rounded-lg p-3 max-h-56 overflow-y-auto lg:flex-1 lg:min-h-0 lg:max-h-none">
       <h3 className="text-sm font-semibold text-slate-300 mb-3">Captured Stones</h3>
       <div className="flex flex-col gap-3">
         {gameState.players.map(player => {

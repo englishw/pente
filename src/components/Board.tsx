@@ -2,8 +2,9 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 import { useGame } from '../context/GameContext';
 import { useSharedGame } from '../context/SharedGameContext';
 import { useSettings } from '../context/SettingsContext';
-import { BOARD_SIZE } from '../engine/types';
+import { BOARD_SIZE, type CapturedPair, type Position } from '../engine/types';
 import { isValidMove } from '../engine/validation';
+import { detectOpenEndedThreats, type OpenEndedThreat } from '../engine/victory';
 import { playPlaceSound, playCaptureSound } from '../utils/sound';
 import Stone from './Stone';
 
@@ -19,9 +20,32 @@ const STAR_POINTS = [
 ];
 
 const COL_LABELS = 'ABCDEFGHJKLMNOPQRST'; // I is skipped traditionally
+const TRANSIENT_INDICATOR_MS = 3200;
+
+interface TransientBoardCue {
+  key: string;
+  summary: string | null;
+  winningPositions: Position[];
+  capturePairs: CapturedPair[];
+  threats: OpenEndedThreat[];
+}
 
 function toSvg(row: number, col: number): { x: number; y: number } {
   return { x: PADDING + col * CELL_SIZE, y: PADDING + row * CELL_SIZE };
+}
+
+function positionKey(position: Position): string {
+  return `${position.row}:${position.col}`;
+}
+
+function uniquePositions(positions: Position[]): Position[] {
+  const seen = new Set<string>();
+  return positions.filter(position => {
+    const key = positionKey(position);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 export default function Board() {
@@ -29,15 +53,53 @@ export default function Board() {
   const { requestMove, canLocalMove } = useSharedGame();
   const { settings } = useSettings();
   const [cursor, setCursor] = useState<{ row: number; col: number } | null>(null);
+  const [transientCue, setTransientCue] = useState<TransientBoardCue | null>(null);
   const svgRef = useRef<SVGSVGElement>(null);
 
   const lastMove = gameState?.moves[gameState.moves.length - 1];
+  const clearTransientCue = useCallback(() => {
+    setTransientCue(null);
+  }, []);
+
+  const transientCandidate: TransientBoardCue | null = gameState
+    ? (() => {
+        const threatPatterns = gameState.gameOver
+          ? []
+          : detectOpenEndedThreats(gameState.board, gameState.players.length);
+
+        if (gameState.gameOver && gameState.winner !== null) {
+          const winner = gameState.players[gameState.winner];
+          return {
+            key: `gameover:${gameState.moves.length}:${gameState.winReason}:${lastMove?.turnNumber ?? 0}`,
+            summary: gameState.winReason === 'five-in-a-row'
+              ? `${winner.name} wins with five in a row.`
+              : `${winner.name} wins on captures.`,
+            winningPositions: gameState.winReason === 'five-in-a-row' ? gameState.winningPositions : [],
+            capturePairs: gameState.winReason === 'captures' ? (lastMove?.captures ?? []) : [],
+            threats: [],
+          };
+        }
+
+        if (threatPatterns.length > 0) {
+          return {
+            key: `threat:${gameState.moves.length}:${threatPatterns.map(threat => `${threat.playerId}:${threat.positions.map(positionKey).join('|')}`).join(';')}`,
+            summary: null,
+            winningPositions: [],
+            capturePairs: [],
+            threats: threatPatterns,
+          };
+        }
+
+        return null;
+      })()
+    : null;
 
   const handleClick = useCallback((row: number, col: number) => {
+    clearTransientCue();
     if (!gameState || gameState.gameOver) return;
     if (!canLocalMove(gameState)) return;
     requestMove({ row, col });
-  }, [canLocalMove, gameState, requestMove]);
+  }, [canLocalMove, clearTransientCue, gameState, requestMove]);
 
   // Play sounds when state changes
   const prevMovesRef = useRef(0);
@@ -55,6 +117,20 @@ export default function Board() {
     prevMovesRef.current = currentMoves;
   }, [gameState?.moves.length]);
 
+  useEffect(() => {
+    if (!transientCandidate) {
+      setTransientCue(null);
+      return;
+    }
+
+    setTransientCue(transientCandidate);
+    const timeoutId = window.setTimeout(() => {
+      setTransientCue(current => current?.key === transientCandidate.key ? null : current);
+    }, TRANSIENT_INDICATOR_MS);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [transientCandidate?.key]);
+
   // Keyboard navigation
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (!gameState || gameState.gameOver) return;
@@ -69,23 +145,35 @@ export default function Board() {
       case 'Enter':
       case ' ':
         e.preventDefault();
+        clearTransientCue();
         handleClick(cur.row, cur.col);
         return;
       default: return;
     }
     e.preventDefault();
+    clearTransientCue();
     setCursor(next);
-  }, [cursor, gameState, handleClick]);
+  }, [clearTransientCue, cursor, gameState, handleClick]);
 
   if (!gameState) return null;
 
   const canInteract = canLocalMove(gameState);
+  const winningHighlightKeys = new Set((transientCue?.winningPositions ?? []).map(positionKey));
+  const threatStonePositions = uniquePositions((transientCue?.threats ?? []).flatMap(threat => threat.positions));
+  const threatStoneKeys = new Set(threatStonePositions.map(positionKey));
+  const threatOpenEnds = uniquePositions((transientCue?.threats ?? []).flatMap(threat => threat.openEnds));
+  const captureHighlights = uniquePositions((transientCue?.capturePairs ?? []).flatMap(pair => [pair.pos1, pair.pos2]));
 
   const isWinningPos = (r: number, c: number) =>
-    gameState.winningPositions.some(p => p.row === r && p.col === c);
+    winningHighlightKeys.has(`${r}:${c}`);
 
   return (
-    <div className="flex items-center justify-center w-full">
+    <div className="relative flex items-center justify-center w-full">
+      {transientCue?.summary && (
+        <div className="transient-banner pointer-events-none absolute left-1/2 top-3 z-[60] -translate-x-1/2 rounded-full border border-amber-300/50 bg-slate-900/85 px-4 py-2 text-sm font-medium text-amber-100 shadow-lg backdrop-blur-sm">
+          {transientCue.summary}
+        </div>
+      )}
       <svg
         ref={svgRef}
         viewBox={`0 0 ${BOARD_PX} ${BOARD_PX}`}
@@ -121,6 +209,58 @@ export default function Board() {
         {STAR_POINTS.map(([r, c]) => {
           const { x, y } = toSvg(r, c);
           return <circle key={`star-${r}-${c}`} cx={x} cy={y} r="2.5" fill="#5C4033" />;
+        })}
+
+        {/* Threat open ends */}
+        {threatOpenEnds.map(position => {
+          const { x, y } = toSvg(position.row, position.col);
+          return (
+            <circle
+              key={`threat-end-${position.row}-${position.col}`}
+              cx={x}
+              cy={y}
+              r="6.4"
+              fill="none"
+              stroke="rgba(96,165,250,0.92)"
+              strokeWidth="1.3"
+              className="board-threat-end"
+            />
+          );
+        })}
+
+        {/* Capture victory markers */}
+        {(transientCue?.capturePairs ?? []).map((pair, index) => {
+          const start = toSvg(pair.pos1.row, pair.pos1.col);
+          const end = toSvg(pair.pos2.row, pair.pos2.col);
+          return (
+            <g key={`capture-pair-${index}`}>
+              <line
+                x1={start.x}
+                y1={start.y}
+                x2={end.x}
+                y2={end.y}
+                stroke="rgba(248,113,113,0.82)"
+                strokeWidth="1.8"
+                strokeDasharray="4,3"
+                className="board-capture-link"
+              />
+            </g>
+          );
+        })}
+        {captureHighlights.map(position => {
+          const { x, y } = toSvg(position.row, position.col);
+          return (
+            <circle
+              key={`capture-highlight-${position.row}-${position.col}`}
+              cx={x}
+              cy={y}
+              r="7"
+              fill="rgba(248,113,113,0.16)"
+              stroke="rgba(252,165,165,0.9)"
+              strokeWidth="1.4"
+              className="board-capture-mark"
+            />
+          );
         })}
 
         {/* Coordinate labels */}
@@ -171,6 +311,7 @@ export default function Board() {
             const player = gameState.players[playerId];
             const { x, y } = toSvg(r, c);
             const isNew = lastMove?.position.row === r && lastMove?.position.col === c;
+            const isRecent = isNew;
             return (
               <Stone
                 key={`stone-${r}-${c}`}
@@ -179,6 +320,13 @@ export default function Board() {
                 playerIndex={playerId}
                 isWinning={isWinningPos(r, c)}
                 isNew={isNew}
+                isRecent={isRecent}
+                isThreat={threatStoneKeys.has(`${r}:${c}`)}
+                isCaptureTrigger={Boolean(
+                  transientCue?.capturePairs.length &&
+                  lastMove?.position.row === r &&
+                  lastMove.position.col === c
+                )}
               />
             );
           })

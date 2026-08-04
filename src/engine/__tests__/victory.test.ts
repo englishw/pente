@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { checkFiveInARow, checkCaptureVictory } from '../victory';
+import { checkFiveInARow, checkCaptureVictory, detectOpenEndedThreats } from '../victory';
 import { createBoard, setStone } from '../board';
 
 describe('checkFiveInARow', () => {
@@ -84,5 +84,57 @@ describe('checkCaptureVictory', () => {
   it('returns false below 5 captures', () => {
     expect(checkCaptureVictory(4)).toBe(false);
     expect(checkCaptureVictory(0)).toBe(false);
+  });
+});
+
+describe('detectOpenEndedThreats', () => {
+  it('detects an open-ended three in 2-player games', () => {
+    let board = createBoard();
+    board = setStone(board, { row: 9, col: 8 }, 0);
+    board = setStone(board, { row: 9, col: 9 }, 0);
+    board = setStone(board, { row: 9, col: 10 }, 0);
+
+    const threats = detectOpenEndedThreats(board, 2);
+
+    expect(threats).toHaveLength(1);
+    expect(threats[0].playerId).toBe(0);
+    expect(threats[0].positions).toEqual([
+      { row: 9, col: 8 },
+      { row: 9, col: 9 },
+      { row: 9, col: 10 },
+    ]);
+    expect(threats[0].openEnds).toEqual([
+      { row: 9, col: 7 },
+      { row: 9, col: 11 },
+    ]);
+  });
+
+  it('does not detect blocked lines as open threats', () => {
+    let board = createBoard();
+    board = setStone(board, { row: 9, col: 7 }, 1);
+    board = setStone(board, { row: 9, col: 8 }, 0);
+    board = setStone(board, { row: 9, col: 9 }, 0);
+    board = setStone(board, { row: 9, col: 10 }, 0);
+
+    const threats = detectOpenEndedThreats(board, 2);
+
+    expect(threats).toHaveLength(0);
+  });
+
+  it('detects an open-ended four in 4-player games', () => {
+    let board = createBoard();
+    board = setStone(board, { row: 6, col: 6 }, 2);
+    board = setStone(board, { row: 7, col: 7 }, 2);
+    board = setStone(board, { row: 8, col: 8 }, 2);
+    board = setStone(board, { row: 9, col: 9 }, 2);
+
+    const threats = detectOpenEndedThreats(board, 4);
+
+    expect(threats).toHaveLength(1);
+    expect(threats[0].playerId).toBe(2);
+    expect(threats[0].openEnds).toEqual([
+      { row: 5, col: 5 },
+      { row: 10, col: 10 },
+    ]);
   });
 });

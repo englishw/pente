@@ -46,6 +46,27 @@ body {
   50% { filter: drop-shadow(0 0 12px rgba(255,215,0,0.9)); }
 }
 
+@keyframes recent-stone-pulse {
+  0%, 100% { opacity: 0.55; }
+  50% { opacity: 1; }
+}
+
+@keyframes threat-pulse {
+  0%, 100% { opacity: 0.3; }
+  50% { opacity: 0.85; }
+}
+
+@keyframes capture-flash {
+  0%, 100% { opacity: 0.35; }
+  50% { opacity: 1; }
+}
+
+@keyframes transient-banner {
+  0% { opacity: 0; transform: translate(-50%, -8px); }
+  12%, 82% { opacity: 1; transform: translate(-50%, 0); }
+  100% { opacity: 0; transform: translate(-50%, -8px); }
+}
+
 @keyframes fade-in {
   from { opacity: 0; }
   to { opacity: 1; }
@@ -63,8 +84,31 @@ body {
   animation: stone-glow 1.2s ease-in-out infinite;
 }
 
+.stone-winning-ring {
+  animation: stone-glow 1.2s ease-in-out infinite;
+}
+
+.stone-recent-ring {
+  animation: recent-stone-pulse 1.5s ease-in-out infinite;
+}
+
+.stone-threat-ring,
+.board-threat-end {
+  animation: threat-pulse 1.3s ease-in-out infinite;
+}
+
+.stone-capture-ring,
+.board-capture-mark,
+.board-capture-link {
+  animation: capture-flash 1s ease-in-out infinite;
+}
+
 .fade-in {
   animation: fade-in calc(400ms * var(--animation-speed)) ease-out forwards;
+}
+
+.transient-banner {
+  animation: transient-banner calc(3200ms * var(--animation-speed)) ease-out forwards;
 }
 
 /* Focus styles */

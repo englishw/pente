@@ -6,6 +6,12 @@ export interface FiveInARowResult {
   positions: Position[];
 }
 
+export interface OpenEndedThreat {
+  playerId: number;
+  positions: Position[];
+  openEnds: [Position, Position];
+}
+
 /**
  * Check if placing a stone creates five-or-more in a row.
  * Returns the winning positions if found.
@@ -49,4 +55,61 @@ export function checkFiveInARow(
  */
 export function checkCaptureVictory(totalCaptures: number): boolean {
   return totalCaptures >= CAPTURES_TO_WIN;
+}
+
+/**
+ * Detect open-ended threat lines for the current board shape.
+ * In 2-player games, an open three is warned.
+ * In 3- and 4-player games, an open four is warned.
+ */
+export function detectOpenEndedThreats(board: Board, playerCount: number): OpenEndedThreat[] {
+  const targetLength = playerCount === 2 ? 3 : 4;
+  const threats: OpenEndedThreat[] = [];
+
+  for (let row = 0; row < board.length; row++) {
+    for (let col = 0; col < board[row].length; col++) {
+      const playerId = board[row][col];
+      if (playerId === null) continue;
+
+      for (const [dr, dc] of AXES) {
+        const start: Position = { row, col };
+        const previous: Position = { row: row - dr, col: col - dc };
+
+        if (isInBounds(previous) && getStone(board, previous) === playerId) {
+          continue;
+        }
+
+        const positions: Position[] = [];
+        let cursor: Position = start;
+
+        while (isInBounds(cursor) && getStone(board, cursor) === playerId) {
+          positions.push(cursor);
+          cursor = { row: cursor.row + dr, col: cursor.col + dc };
+        }
+
+        if (positions.length !== targetLength) {
+          continue;
+        }
+
+        const before = previous;
+        const after = cursor;
+
+        if (!isInBounds(before) || !isInBounds(after)) {
+          continue;
+        }
+
+        if (getStone(board, before) !== null || getStone(board, after) !== null) {
+          continue;
+        }
+
+        threats.push({
+          playerId,
+          positions,
+          openEnds: [before, after],
+        });
+      }
+    }
+  }
+
+  return threats;
 }

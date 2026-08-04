@@ -108,6 +108,32 @@ describe('makeMove', () => {
     expect(state.players[0].captures).toBe(1);
     expect(state.players[0].capturedStones).toEqual([2, 1]);
   });
+
+  it('retains the capture pair that triggers a capture victory', () => {
+    let state = createGame(config2);
+    state = makeMove(state, { row: CENTER, col: CENTER }); // P0
+    state = makeMove(state, { row: CENTER, col: CENTER + 1 }); // P1
+    state = makeMove(state, { row: CENTER, col: CENTER + 4 }); // P0
+    state = makeMove(state, { row: CENTER, col: CENTER + 2 }); // P1
+
+    state = {
+      ...state,
+      players: state.players.map(player =>
+        player.id === 0 ? { ...player, captures: 4 } : player
+      ),
+    };
+
+    state = makeMove(state, { row: CENTER, col: CENTER + 3 }); // P0 capture win
+
+    expect(state.gameOver).toBe(true);
+    expect(state.winReason).toBe('captures');
+    expect(state.moves.at(-1)?.captures).toEqual([
+      {
+        pos1: { row: CENTER, col: CENTER + 2 },
+        pos2: { row: CENTER, col: CENTER + 1 },
+      },
+    ]);
+  });
 });
 
 describe('undoMove', () => {
