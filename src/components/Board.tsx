@@ -221,7 +221,7 @@ export default function Board() {
               cy={y}
               r="6.4"
               fill="none"
-              stroke="rgba(96,165,250,0.92)"
+              stroke="#DEB887"
               strokeWidth="1.3"
               className="board-threat-end"
             />
