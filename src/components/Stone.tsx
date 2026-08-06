@@ -41,7 +41,7 @@ export default function Stone({
           cy={cy}
           r={radius + 2.8}
           fill="none"
-          stroke="#DEB887"
+          stroke="#e4dcd1"
           strokeWidth="1.4"
           className="stone-threat-ring"
         />
